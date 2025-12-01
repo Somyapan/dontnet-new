@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
 WORKDIR /src
 
-# copy csproj and restore as a separate layer
+# copy csproj(s) and restore as separate layers
 COPY ["BlazingBlog.csproj", "./"]
 RUN dotnet restore "BlazingBlog.csproj"
 
@@ -13,9 +13,15 @@ RUN dotnet publish "BlazingBlog.csproj" -c Release -o /app/publish --no-restore
 # runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
 WORKDIR /app
-ENV DOTNET_RUNNING_IN_CONTAINER=true
-ENV ASPNETCORE_URLS=http://+:80
 
+# copy published app
 COPY --from=build /app/publish ./
 
-ENTRYPOINT ["dotnet", "BlazingBlog.dll"]
+# copy helper to wait for DB (optional)
+COPY wait-for-db.sh .
+RUN chmod +x wait-for-db.sh
+
+ENV ASPNETCORE_URLS=http://+:80
+
+# Wait for DB then start the app
+ENTRYPOINT ["./wait-for-db.sh", "db", "1433", "dotnet", "BlazingBlog.dll"]

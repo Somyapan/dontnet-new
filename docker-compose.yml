@@ -17,6 +17,19 @@ services:
       timeout: 5s
       retries: 10
 
+  migrator:
+    image: mcr.microsoft.com/dotnet/sdk:7.0
+    container_name: blazingblog_migrator
+    working_dir: /src
+    volumes:
+      - ./BlazingBlog:/src:cached
+    environment:
+      - ConnectionStrings__Blog=Server=db,1433;Database=BlazingBlogDb;User Id=sa;Password=Your_password123!;TrustServerCertificate=True;
+      - SA_PASSWORD=Your_password123!
+    depends_on:
+      - db
+    entrypoint: [ "bash", "-c", "echo 'Waiting for DB to be ready...' && until bash -c '</dev/tcp/db/1433' &>/dev/null; do sleep 1; done; echo 'DB ready, running migrations'; dotnet tool install --global dotnet-ef --version 7.* || true; export PATH=\"$PATH:/root/.dotnet/tools\"; dotnet restore ./BlazingBlog.csproj; dotnet ef database update --no-build --project ./BlazingBlog.csproj --startup-project ./BlazingBlog.csproj || true; echo 'migrator finished'"]
+
   web:
     build:
       context: ./BlazingBlog
@@ -26,11 +39,12 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__Blog=Server=db,1433;Database=BlazingBlogDb;User Id=sa;Password=Your_password123!;TrustServerCertificate=True;
+      - SA_PASSWORD=Your_password123!
     ports:
       - "5000:80"
     depends_on:
-      db:
-        condition: service_healthy
+      - db
+      - migrator
 
 volumes:
   dbdata:
